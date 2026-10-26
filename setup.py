@@ -3,7 +3,7 @@ from codecs import open
 from setuptools import find_packages, setup
 
 
-VERSION = '2.2.4'
+VERSION = '2.2.5'
 
 with open(os.path.join(os.path.dirname(__file__), 'README.md')) as readme:
     README = readme.read()
@@ -29,7 +29,6 @@ setup(
         "djangorestframework>=3.13.1",
         "drf-flex-fields>=0.9.7",
         "django-filter>=21.0",
-        "django-enumfields>=2.1.1",
         "drf-spectacular>=0.26.3"
     ],
     python_requires='>=3.6',
