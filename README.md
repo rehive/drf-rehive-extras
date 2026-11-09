@@ -223,9 +223,3 @@ class WebhookView(ActionAPIView):
 ```
 
 For local development, where the platform is not behind Cloudflare, set `PLATFORM_WEBHOOK_IPS` to the address the platform connects from (e.g. `127.0.0.1`).
-
-## Testing
-
-```sh
-python runtests.py
-```
