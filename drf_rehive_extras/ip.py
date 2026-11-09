@@ -36,6 +36,12 @@ DEFAULT_CLOUDFLARE_IP_RANGES = (
     '2c0f:f248::/32',
 )
 
+# The number of X-Forwarded-For entries appended by the trusted load balancer.
+# The Google external load balancer appends two: the address that connected to
+# it followed by its own forwarding rule IP. Can be overridden using the
+# `LOAD_BALANCER_XFF_ENTRIES` Django setting.
+DEFAULT_LOAD_BALANCER_XFF_ENTRIES = 2
+
 
 def parse_ip(value):
     """
@@ -65,6 +71,20 @@ def get_cloudflare_ip_ranges():
     return tuple(ipaddress.ip_network(n) for n in ranges)
 
 
+def get_load_balancer_xff_entries():
+    """
+    The number of X-Forwarded-For entries appended by the load balancer.
+    """
+
+    return int(
+        getattr(
+            settings,
+            'LOAD_BALANCER_XFF_ENTRIES',
+            DEFAULT_LOAD_BALANCER_XFF_ENTRIES,
+        )
+    )
+
+
 def is_cloudflare_ip(value):
     """
     Check whether an IP address belongs to a Cloudflare edge range.
@@ -86,10 +106,10 @@ def get_origin_ip(request):
     never the client. Cloudflare sets the single-valued CF-Connecting-IP header
     to the true client IP and overwrites any value the client sent. That header
     is only trusted when the request provably came through Cloudflare: the
-    load balancer appends `<peer-ip>, <forwarding-rule-ip>` to X-Forwarded-For,
-    so the second-last entry is the address that connected to the load balancer
-    and must be a Cloudflare edge. Clients control everything left of that
-    entry.
+    load balancer appends `<peer-ip>, <forwarding-rule-ip>` to X-Forwarded-For
+    (`LOAD_BALANCER_XFF_ENTRIES` entries), so the first of those is the address
+    that connected to the load balancer and must be a Cloudflare edge. Clients
+    control everything left of that entry.
 
     Without X-Forwarded-For no proxy touched the request (local development,
     tests, in-cluster calls) and the TCP peer is the client.
@@ -101,7 +121,8 @@ def get_origin_ip(request):
         return str(ip) if ip else None
 
     addrs = x_forwarded_for.split(',')
-    if len(addrs) < 2 or not is_cloudflare_ip(addrs[-2]):
+    entries = get_load_balancer_xff_entries()
+    if len(addrs) < entries or not is_cloudflare_ip(addrs[-entries]):
         return None
 
     ip = parse_ip(request.META.get('HTTP_CF_CONNECTING_IP'))

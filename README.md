@@ -189,7 +189,13 @@ class ExampleActionView(ActionAPIView):
 It assumes the production path is Cloudflare followed by the Google external load balancer:
 
 - Without an `X-Forwarded-For` header no proxy touched the request (local development, tests, in-cluster calls) and `REMOTE_ADDR` is the client.
-- Otherwise the second-last `X-Forwarded-For` entry (the address that connected to the load balancer) must be a Cloudflare edge, in which case the `CF-Connecting-IP` header is the client. Anything else returns `None`.
+- Otherwise the `X-Forwarded-For` entry appended first by the load balancer (the address that connected to it) must be a Cloudflare edge, in which case the `CF-Connecting-IP` header is the client. Anything else returns `None`.
+
+The Google external load balancer appends two entries, the connecting address followed by its own forwarding rule IP, so by default the second-last entry is checked. If the load balancer in front of the service appends a different number of entries, override it:
+
+```python
+LOAD_BALANCER_XFF_ENTRIES = int(os.environ.get('LOAD_BALANCER_XFF_ENTRIES', 2))
+```
 
 The Cloudflare edge ranges ship with the package and can be overridden using the `CLOUDFLARE_IP_RANGES` setting:
 
