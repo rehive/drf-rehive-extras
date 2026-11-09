@@ -14,6 +14,8 @@
 - Base serializers.
 - Metadata, timestamp, and enum serializer fields.
 - Schema generation support via drf-spectacular.
+- Trusted origin IP resolution for requests behind Cloudflare.
+- Shared permissions for Rehive services, such as the platform webhook origin check.
 
 ## Getting started
 
@@ -178,4 +180,52 @@ class ExampleActionView(ActionAPIView):
     serializer_classes = {
         "POST": (ExampleActionSerializer, ActionResponseSerializer,)
     }
+```
+
+### Origin IP
+
+`drf_rehive_extras.ip.get_origin_ip(request)` resolves the client IP of a request, or `None` if it cannot be trusted. It never raises, so logging call sites can store the `None`, while access control call sites must treat `None` as deny.
+
+It assumes the production path is Cloudflare followed by the Google external load balancer:
+
+- Without an `X-Forwarded-For` header no proxy touched the request (local development, tests, in-cluster calls) and `REMOTE_ADDR` is the client.
+- Otherwise the second-last `X-Forwarded-For` entry (the address that connected to the load balancer) must be a Cloudflare edge, in which case the `CF-Connecting-IP` header is the client. Anything else returns `None`.
+
+The Cloudflare edge ranges ship with the package and can be overridden using the `CLOUDFLARE_IP_RANGES` setting:
+
+```python
+CLOUDFLARE_IP_RANGES = ('173.245.48.0/20', '2400:cb00::/32',)
+```
+
+### Service permissions
+
+`drf_rehive_extras.services` contains utilities that are specific to Rehive services (extensions).
+
+`PlatformWebhookPermission` only allows requests whose origin IP (see above) is one of the platform webhook IPs. It defaults to `34.91.230.165` and can be configured using the `PLATFORM_WEBHOOK_IPS` setting:
+
+```python
+# settings.py
+PLATFORM_WEBHOOK_IPS = [
+    ip.strip() for ip in os.environ.get(
+        'PLATFORM_WEBHOOK_IPS', '34.91.230.165'
+    ).split(',') if ip.strip()
+]
+```
+
+```python
+from drf_rehive_extras.generics import ActionAPIView
+from drf_rehive_extras.services.permissions import PlatformWebhookPermission
+
+class WebhookView(ActionAPIView):
+    authentication_classes = ()
+    permission_classes = (PlatformWebhookPermission,)
+    ...
+```
+
+For local development, where the platform is not behind Cloudflare, set `PLATFORM_WEBHOOK_IPS` to the address the platform connects from (e.g. `127.0.0.1`).
+
+## Testing
+
+```sh
+python runtests.py
 ```
