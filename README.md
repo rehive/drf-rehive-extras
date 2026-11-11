@@ -14,7 +14,7 @@
 - Base serializers.
 - Metadata, timestamp, and enum serializer fields.
 - Schema generation support via drf-spectacular.
-- Trusted origin IP resolution for requests behind Cloudflare.
+- Trusted origin (IP and country) resolution for requests behind Cloudflare.
 - Shared permissions for Rehive services, such as the platform webhook origin check.
 
 ## Getting started
