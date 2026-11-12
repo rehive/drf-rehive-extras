@@ -3,7 +3,7 @@ from codecs import open
 from setuptools import find_packages, setup
 
 
-VERSION = '2.4.0'
+VERSION = '2.5.0'
 
 with open(os.path.join(os.path.dirname(__file__), 'README.md')) as readme:
     README = readme.read()
@@ -31,6 +31,10 @@ setup(
         "django-filter>=21.0",
         "drf-spectacular>=0.26.3"
     ],
+    extras_require={
+        # Needed for `drf_rehive_extras.authentication`.
+        "auth": ["rehive>=1.3.7"],
+    },
     python_requires='>=3.6',
     classifiers=[
         'Framework :: Django',

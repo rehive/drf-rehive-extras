@@ -16,6 +16,7 @@
 - Schema generation support via drf-spectacular.
 - Trusted origin (IP and country) resolution for requests behind Cloudflare.
 - Shared permissions for Rehive services, such as the platform webhook origin check.
+- Shared token authentication for Rehive services.
 
 ## Getting started
 
@@ -180,4 +181,55 @@ class ExampleActionView(ActionAPIView):
     serializer_classes = {
         "POST": (ExampleActionSerializer, ActionResponseSerializer,)
     }
+```
+
+### Authentication
+
+`drf_rehive_extras.authentication` has the token authentication shared by Rehive services. It needs the Rehive SDK:
+
+```sh
+pip install drf-rehive-extras[auth]
+```
+
+`RehiveAuthentication` reads an `Authorization: Token <token>` header, validates the token against the Rehive API and checks `groups` (an empty list allows every group). A missing or malformed header is a 401. Services implement `get_user()` to turn the platform user into their own local user:
+
+```python
+import uuid
+
+from rest_framework import exceptions
+from drf_rehive_extras.authentication import RehiveAuthentication
+
+from .models import Company, User
+
+
+class UserAuthentication(RehiveAuthentication):
+    def get_user(self, request, platform_user):
+        try:
+            company = Company.objects.get(
+                identifier=platform_user['company'], active=True
+            )
+        except Company.DoesNotExist:
+            raise exceptions.ValidationError(
+                {"non_field_errors": ["Inactive company."]}
+            )
+
+        user, created = User.objects.get_or_create(
+            identifier=uuid.UUID(platform_user['id']), company=company
+        )
+        return user
+
+
+class AdminAuthentication(UserAuthentication):
+    groups = ["admin", "service"]
+```
+
+The platform user is attached to the returned user as `user._platform_user`. The IP sent to Rehive as `X-Forwarded-For` comes from `drf_rehive_extras.ip.get_origin_ip`; override `get_forwarded_for()` to change it.
+
+To migrate a service generated from `service-framework`, move the company and user lookup from `RehiveAuthentication.authenticate()` in `authentication.py` into `get_user()`, delete the rest of the copied code (`HeaderAuthentication`, `AuthenticationAPIException`, `_get_request_ips`, `_raise_exception`), and keep any service-specific subclasses as they are. `HeaderAuthentication.get_auth_header(request, name="secret")` still works for webhook secrets. Tests that patch `<module>.authentication.Rehive` should patch `drf_rehive_extras.authentication.Rehive` instead.
+
+## Testing
+
+```sh
+pip install -e .[auth]
+python runtests.py
 ```
